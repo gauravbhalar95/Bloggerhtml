@@ -166,5 +166,5 @@ def process_download_link(message, movie_name):
 
 # Start the Flask app
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 8080))
+    port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
