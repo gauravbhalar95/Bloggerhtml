@@ -1,4 +1,5 @@
-Flask>=2.3.0
 pyTelegramBotAPI==4.4.0
-requests==2.26.0
+Flask>=2.3.0
+telebot
+requests
 werkzeug==2.2.3
