@@ -10,12 +10,11 @@ app = Flask(__name__)
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 # Replace with your TMDB API key
 TMDB_API_KEY = os.getenv('TMDB')
+# The URL for webhook (replace with your actual Koyeb URL)
+WEBHOOK_URL = os.getenv('WEBHOOK_URL')  
 
 # Initialize the TeleBot
 bot = telebot.TeleBot(BOT_TOKEN)
-
-# Set the webhook URL
-WEBHOOK_URL = os.getenv('WEBHOOK_URL')  # Add your Koyeb URL here
 
 # Function to fetch movie details from TMDB
 def fetch_movie_details(movie_name):
@@ -92,6 +91,11 @@ def remove_webhook():
     response = requests.get(f'https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook')
     return response.json()
 
+# Health check route for Koyeb
+@app.route('/health', methods=['GET'])
+def health():
+    return "Healthy", 200
+
 # Start the Flask app
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8000)  # Change port to match Koyeb health checks
+    app.run(host='0.0.0.0', port=8000)  # Ensure you use the correct port for Koyeb
