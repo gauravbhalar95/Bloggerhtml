@@ -179,5 +179,7 @@ def webhook():
     return '', 200
 
 # Start the Flask app
+# Start the Flask app with the PORT environment variable
 if __name__ == '__main__':
-    app.run(port=8080)  # Change to your desired port
+    port = int(os.environ.get("PORT", 8080))  # Use the PORT environment variable or default to 5000
+    app.run(host='0.0.0.0', port=port)  # Bind to 0.0.0.0 and use the specified port
