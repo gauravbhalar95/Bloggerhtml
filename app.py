@@ -21,7 +21,7 @@ def fetch_movie_details(movie_name):
     url = f"https://api.themoviedb.org/3/search/movie?api_key={TMDB_API_KEY}&query={movie_name}"
     response = requests.get(url)
     if response.status_code != 200:
-        print(f"Error: {response.status_code} - {response.text}")
+        print(f"Error fetching movie details: {response.status_code} - {response.text}")
         return None
 
     data = response.json()
@@ -31,7 +31,7 @@ def fetch_movie_details(movie_name):
         details_url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={TMDB_API_KEY}&append_to_response=credits,recommendations"
         details_response = requests.get(details_url)
         if details_response.status_code != 200:
-            print(f"Error: {details_response.status_code} - {details_response.text}")
+            print(f"Error fetching movie details: {details_response.status_code} - {details_response.text}")
             return None
 
         return details_response.json()
@@ -55,7 +55,7 @@ def process_download_link(message, movie_name):
     movie_data = fetch_movie_details(movie_name)
 
     if movie_data:
-        html_content = generate_html(movie_data, download_link)
+        html_content = generate_html(movie_data, download_link)  # Ensure you define this function
 
         # Save HTML content to a file
         filename = f"{movie_name.replace(' ', '_')}_details.html"
@@ -107,4 +107,4 @@ def health():
 
 # Start the Flask app
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8000)  # Ensure you use the correct port for Koyeb
+    app.run(host='0.0.0.0', port=int(os.getenv('PORT', 8000)))  # Ensure you use the correct port for Koyeb
