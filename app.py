@@ -11,7 +11,7 @@ BOT_TOKEN = os.getenv('BOT_TOKEN')
 # Replace with your TMDB API key
 TMDB_API_KEY = os.getenv('TMDB')
 # The URL for webhook (replace with your actual Koyeb URL)
-WEBHOOK_URL = os.getenv('WEBHOOK_URL')  
+WEBHOOK_URL = os.getenv('WEBHOOK_URL')
 
 # Initialize the TeleBot
 bot = telebot.TeleBot(BOT_TOKEN)
@@ -71,22 +71,6 @@ def process_download_link(message, movie_name):
     else:
         bot.send_message(message.chat.id, "Sorry, I couldn't find any details for that movie.")
 
-# Route to remove the webhook
-@app.route('/remove_webhook', methods=['GET'])
-def remove_webhook():
-    response = requests.get(f'https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook')
-    return response.json()
-
-# Set the webhook after removing the old one
-@app.route('/set_webhook', methods=['GET'])
-def set_webhook():
-    # First remove the old webhook
-    remove_webhook()
-    
-    # Then set the new webhook
-    response = requests.get(f'https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={WEBHOOK_URL}/{BOT_TOKEN}')
-    return response.json()
-
 # Webhook route to handle incoming updates
 @app.route('/' + BOT_TOKEN, methods=['POST'])
 def webhook():
@@ -94,6 +78,27 @@ def webhook():
     update = telebot.types.Update.de_json(json_str)
     bot.process_new_updates([update])
     return '', 200
+
+# Function to remove old webhook and set a new one
+def set_new_webhook():
+    # Remove existing webhook
+    remove_response = requests.get(f'https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook')
+    if remove_response.status_code == 200:
+        # Set new webhook
+        set_response = requests.get(f'https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={WEBHOOK_URL}/{BOT_TOKEN}')
+        return set_response.json()
+    return remove_response.json()
+
+# Route to set the webhook
+@app.route('/set_webhook', methods=['GET'])
+def set_webhook():
+    return set_new_webhook()
+
+# Route to remove the webhook
+@app.route('/remove_webhook', methods=['GET'])
+def remove_webhook():
+    response = requests.get(f'https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook')
+    return response.json()
 
 # Health check route for Koyeb
 @app.route('/health', methods=['GET'])
