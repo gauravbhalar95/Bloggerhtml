@@ -177,4 +177,4 @@ def set_webhook():
 
 # Start the Flask app
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)  # Make sure Render is set to listen on the correct port
+    app.run(host='0.0.0.0', port=8080)  # Changed port to 8080
