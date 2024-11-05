@@ -1,17 +1,21 @@
+import os
 import telebot
 import requests
-import os
 from flask import Flask, request
 
-# Initialize Flask app
+# Create a Flask app
 app = Flask(__name__)
 
 # Replace with your bot token from Telegram
-BOT_TOKEN = os.getenv('BOT_TOKEN') 
+BOT_TOKEN = os.getenv('BOT_TOKEN')
 # Replace with your TMDB API key
-TMDB_API_KEY = os.getenv('TMDB') 
+TMDB_API_KEY = os.getenv('TMDB')
 
+# Initialize the TeleBot
 bot = telebot.TeleBot(BOT_TOKEN)
+
+# Set the webhook URL
+WEBHOOK_URL = os.getenv('WEBHOOK_URL')  # Add your Render URL here
 
 # Function to fetch movie details from TMDB
 def fetch_movie_details(movie_name):
@@ -123,13 +127,6 @@ def generate_html(movie_data, download_link):
     """
     return html_content
 
-# Define the webhook route
-@app.route(f'/{BOT_TOKEN}', methods=['POST'])
-def webhook():
-    update = request.get_json()
-    bot.process_new_updates([telebot.types.Update.de_json(update)])
-    return '', 200
-
 # Command handler for `/movie`
 @bot.message_handler(commands=['movie'])
 def send_movie_details(message):
@@ -164,7 +161,20 @@ def process_download_link(message, movie_name):
     else:
         bot.send_message(message.chat.id, "Sorry, I couldn't find any details for that movie.")
 
+# Webhook route to handle incoming updates
+@app.route('/' + BOT_TOKEN, methods=['POST'])
+def webhook():
+    json_str = request.get_data(as_text=True)
+    update = telebot.types.Update.de_json(json_str)
+    bot.process_new_updates([update])
+    return '', 200
+
+# Set the webhook when the app starts
+@app.route('/set_webhook', methods=['GET'])
+def set_webhook():
+    response = requests.get(f'https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={WEBHOOK_URL}')
+    return response.json()
+
 # Start the Flask app
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=5000)  # Make sure Render is set to listen on the correct port
