@@ -1,17 +1,15 @@
 import os
 import telebot
 import requests
-from flask import Flask, request
+from flask import Flask, request, jsonify
 
 # Create a Flask app
 app = Flask(__name__)
 
-# Replace with your bot token from Telegram
+# Get environment variables
 BOT_TOKEN = os.getenv('BOT_TOKEN')
-# Replace with your TMDB API key
 TMDB_API_KEY = os.getenv('TMDB')
-# The URL for webhook (replace with your actual Koyeb URL)
-WEBHOOK_URL = os.getenv('WEBHOOK_URL')  
+WEBHOOK_URL = os.getenv('WEBHOOK_URL')  # Ensure this is the full URL to your Koyeb deployment
 
 # Initialize the TeleBot
 bot = telebot.TeleBot(BOT_TOKEN)
@@ -21,7 +19,7 @@ def fetch_movie_details(movie_name):
     url = f"https://api.themoviedb.org/3/search/movie?api_key={TMDB_API_KEY}&query={movie_name}"
     response = requests.get(url)
     if response.status_code != 200:
-        print(f"Error: {response.status_code} - {response.text}")
+        print(f"Error fetching movie: {response.status_code} - {response.text}")
         return None
 
     data = response.json()
@@ -31,7 +29,7 @@ def fetch_movie_details(movie_name):
         details_url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={TMDB_API_KEY}&append_to_response=credits,recommendations"
         details_response = requests.get(details_url)
         if details_response.status_code != 200:
-            print(f"Error: {details_response.status_code} - {details_response.text}")
+            print(f"Error fetching movie details: {details_response.status_code} - {details_response.text}")
             return None
 
         return details_response.json()
@@ -79,17 +77,30 @@ def webhook():
     bot.process_new_updates([update])
     return '', 200
 
-# Set the webhook when the app starts
+# Route to set the webhook
 @app.route('/set_webhook', methods=['GET'])
 def set_webhook():
-    response = requests.get(f'https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={WEBHOOK_URL}')
-    return response.json()
+    webhook_url = f"{WEBHOOK_URL}/{BOT_TOKEN}"
+    response = requests.get(f'https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={webhook_url}')
+    
+    if response.status_code == 200:
+        print("Webhook set successfully")
+        return jsonify({'status': 'Webhook set successfully', 'response': response.json()})
+    else:
+        print("Failed to set webhook:", response.text)
+        return jsonify({'status': 'Failed to set webhook', 'error': response.text}), 500
 
 # Route to remove the webhook
 @app.route('/remove_webhook', methods=['GET'])
 def remove_webhook():
     response = requests.get(f'https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook')
-    return response.json()
+    
+    if response.status_code == 200:
+        print("Webhook removed successfully")
+        return jsonify({'status': 'Webhook removed successfully', 'response': response.json()})
+    else:
+        print("Failed to remove webhook:", response.text)
+        return jsonify({'status': 'Failed to remove webhook', 'error': response.text}), 500
 
 # Health check route for Koyeb
 @app.route('/health', methods=['GET'])
@@ -98,4 +109,4 @@ def health():
 
 # Start the Flask app
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8000)  # Ensure you use the correct port for Koyeb
+    app.run(host='0.0.0.0', port=8000)
