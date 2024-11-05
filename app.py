@@ -2,7 +2,6 @@ import os
 import telebot
 import requests
 from flask import Flask, request
-from urllib.parse import quote
 
 # Create a Flask app
 app = Flask(__name__)
@@ -72,6 +71,22 @@ def process_download_link(message, movie_name):
     else:
         bot.send_message(message.chat.id, "Sorry, I couldn't find any details for that movie.")
 
+# Route to remove the webhook
+@app.route('/remove_webhook', methods=['GET'])
+def remove_webhook():
+    response = requests.get(f'https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook')
+    return response.json()
+
+# Set the webhook after removing the old one
+@app.route('/set_webhook', methods=['GET'])
+def set_webhook():
+    # First remove the old webhook
+    remove_webhook()
+    
+    # Then set the new webhook
+    response = requests.get(f'https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={WEBHOOK_URL}/{BOT_TOKEN}')
+    return response.json()
+
 # Webhook route to handle incoming updates
 @app.route('/' + BOT_TOKEN, methods=['POST'])
 def webhook():
@@ -79,18 +94,6 @@ def webhook():
     update = telebot.types.Update.de_json(json_str)
     bot.process_new_updates([update])
     return '', 200
-
-# Set the webhook when the app starts
-@app.route('/set_webhook', methods=['GET'])
-def set_webhook():
-    response = requests.get(f'https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={WEBHOOK_URL}/{BOT_TOKEN}')
-    return response.json()
-
-# Route to remove the webhook
-@app.route('/remove_webhook', methods=['GET'])
-def remove_webhook():
-    response = requests.get(f'https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook')
-    return response.json()
 
 # Health check route for Koyeb
 @app.route('/health', methods=['GET'])
