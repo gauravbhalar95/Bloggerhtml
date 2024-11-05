@@ -86,6 +86,12 @@ def set_webhook():
     response = requests.get(f'https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={WEBHOOK_URL}')
     return response.json()
 
+# Route to remove the webhook
+@app.route('/remove_webhook', methods=['GET'])
+def remove_webhook():
+    response = requests.get(f'https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook')
+    return response.json()
+
 # Start the Flask app
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8000)  # Change port to match Koyeb health checks
