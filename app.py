@@ -3,28 +3,15 @@ import requests
 import os
 from flask import Flask, request
 
-# Replace with your bot token from Telegram
-BOT_TOKEN = os.getenv('BOT_TOKEN')
-# Replace with your TMDB API key
-TMDB_API_KEY = os.getenv('TMDB')
-# Get the webhook URL from the environment variable
-WEBHOOK_URL = os.getenv('WEBHOOK_URL')
-
-bot = telebot.TeleBot(BOT_TOKEN)
-
 # Initialize Flask app
 app = Flask(__name__)
 
-# Function to set webhook
-def set_webhook():
-    response = requests.post(f'https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={WEBHOOK_URL}')
-    if response.status_code == 200:
-        print('Webhook set successfully!')
-    else:
-        print(f'Error setting webhook: {response.status_code} - {response.text}')
+# Replace with your bot token from Telegram
+BOT_TOKEN = os.getenv('BOT_TOKEN') 
+# Replace with your TMDB API key
+TMDB_API_KEY = os.getenv('TMDB') 
 
-# Set webhook on startup
-set_webhook()
+bot = telebot.TeleBot(BOT_TOKEN)
 
 # Function to fetch movie details from TMDB
 def fetch_movie_details(movie_name):
@@ -136,6 +123,13 @@ def generate_html(movie_data, download_link):
     """
     return html_content
 
+# Define the webhook route
+@app.route(f'/{BOT_TOKEN}', methods=['POST'])
+def webhook():
+    update = request.get_json()
+    bot.process_new_updates([telebot.types.Update.de_json(update)])
+    return '', 200
+
 # Command handler for `/movie`
 @bot.message_handler(commands=['movie'])
 def send_movie_details(message):
@@ -170,16 +164,7 @@ def process_download_link(message, movie_name):
     else:
         bot.send_message(message.chat.id, "Sorry, I couldn't find any details for that movie.")
 
-# Webhook endpoint to receive updates
-@app.route(f'/{BOT_TOKEN}', methods=['POST'])
-def webhook():
-    json_data = request.get_json()
-    update = telebot.types.Update.de_json(json_data)
-    bot.process_new_updates([update])
-    return '', 200
-
 # Start the Flask app
-# Start the Flask app with the PORT environment variable
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 8080))  # Use the PORT environment variable or default to 5000
-    app.run(host='0.0.0.0', port=port)  # Bind to 0.0.0.0 and use the specified port
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
