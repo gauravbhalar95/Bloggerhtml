@@ -8,38 +8,68 @@ app = Flask(__name__)
 
 # Replace with your bot token from Telegram
 BOT_TOKEN = os.getenv('BOT_TOKEN')
-# Replace with your webhook URL (for deployment)
+# Replace with your TMDB API key
+TMDB_API_KEY = os.getenv('TMDB')
+# The URL for webhook (replace with your actual Koyeb URL)
 WEBHOOK_URL = os.getenv('WEBHOOK_URL')
 
 # Initialize the TeleBot
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# Global variables for managing movie data and links
-movie_data = None
-collected_links = []
-
-# Function to fetch movie details
+# Function to fetch movie details from TMDB
 def fetch_movie_details(movie_name):
-    # Simulating TMDB API for movie data
-    return {
-        "title": movie_name,
-        "overview": f"Details about the movie {movie_name}",
-        "poster_path": "/sample_poster.jpg",
-        "vote_average": 8.5
-    }
+    url = f"https://api.themoviedb.org/3/search/movie?api_key={TMDB_API_KEY}&query={movie_name}"
+    response = requests.get(url)
+    if response.status_code != 200:
+        print(f"Error fetching movie details: {response.status_code} - {response.text}")
+        return None
 
-# Function to generate HTML
-def generate_html(movie_data, links):
+    data = response.json()
+    if data['results']:
+        movie = data['results'][0]
+        movie_id = movie['id']
+        details_url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={TMDB_API_KEY}&append_to_response=credits,recommendations"
+        details_response = requests.get(details_url)
+        if details_response.status_code != 200:
+            print(f"Error fetching movie details: {details_response.status_code} - {details_response.text}")
+            return None
+
+        return details_response.json()
+    return None
+
+# Function to generate HTML content
+def generate_html(movie_data, download_link):
     title = movie_data.get('title', 'Unknown Title')
     overview = movie_data.get('overview', 'No description available.')
     rating = movie_data.get('vote_average', 'N/A')
     poster_path = movie_data.get('poster_path')
     poster_url = f"https://image.tmdb.org/t/p/w500{poster_path}" if poster_path else ''
 
-    links_html = ''
-    for link in links:
-        links_html += f'<a href="{link}" target="_blank"><button class="link-button">{link}</button></a><br>'
+    # HTML for the cast members
+    cast_html = ''
+    for cast in movie_data.get('credits', {}).get('cast', [])[:4]:  # Top 4 cast members
+        profile_path = cast.get('profile_path')
+        profile_url = f"https://image.tmdb.org/t/p/w185{profile_path}" if profile_path else ''
+        cast_html += f"""
+        <div class="cast-member">
+            <img src="{profile_url}" alt="{cast['name']}" class="cast-photo">
+            <p class="cast-name">{cast['name']}</p>
+        </div>
+        """
 
+    # HTML for recommended movies
+    recommendations_html = ''
+    for rec in movie_data.get('recommendations', {}).get('results', [])[:4]:  # Top 4 recommendations
+        rec_poster_path = rec.get('poster_path')
+        rec_poster_url = f"https://image.tmdb.org/t/p/w185{rec_poster_path}" if rec_poster_path else ''
+        recommendations_html += f"""
+        <div class="recommendation">
+            <img src="{rec_poster_url}" alt="{rec['title']}" class="recommendation-poster">
+            <p class="recommendation-title">{rec['title']}</p>
+        </div>
+        """
+
+    # HTML Template with Download Button
     html_content = f"""
     <!DOCTYPE html>
     <html lang="en">
@@ -49,90 +79,89 @@ def generate_html(movie_data, links):
         <title>{title} - Movie Details</title>
         <style>
             body {{ font-family: Arial, sans-serif; background-color: #f4f4f4; text-align: center; }}
-            .movie-container {{ max-width: 800px; margin: 50px auto; padding: 20px; background-color: #fff; border-radius: 8px; }}
-            h1 {{ color: #2a9df4; }}
-            .overview {{ color: #333; }}
-            .rating {{ font-size: 20px; color: #ffd700; }}
-            .link-button {{
-                display: inline-block;
-                margin: 10px;
+            #movie-container {{ max-width: 800px; margin: 50px auto; padding: 20px; border-radius: 8px; background-color: #fff; }}
+            h1 {{ color: #ff001f; }}
+            p {{ color: #1100ff; }}
+            .rating {{ font-size: 24px; color: #ffd700; }}
+            .cast {{ display: flex; justify-content: space-around; }}
+            .cast-member {{ margin: 10px; }}
+            .cast-photo {{ width: 100px; height: auto; border-radius: 8px; }}
+            .recommendations {{ display: flex; justify-content: space-around; margin-top: 20px; }}
+            .recommendation {{ margin: 10px; }}
+            .recommendation-poster {{ width: 80px; height: auto; border-radius: 8px; }}
+            .download-button {{
+                margin-top: 20px;
                 padding: 10px 20px;
-                font-size: 16px;
+                font-size: 18px;
+                font-weight: bold;
                 color: #fff;
-                background-color: #007bff;
+                background-color: #ff5722;
                 border: none;
-                border-radius: 5px;
-                text-decoration: none;
+                border-radius: 8px;
                 cursor: pointer;
+                animation: blink 1.5s linear infinite;
             }}
-            .link-button:hover {{ background-color: #0056b3; }}
+            @keyframes blink {{
+                0%, 100% {{ background-color: #ff5722; }}
+                50% {{ background-color: #ff2200; }}
+            }}
         </style>
     </head>
     <body>
-        <div class="movie-container">
+        <div id="movie-container">
             <h1>{title}</h1>
-            <p class="overview">{overview}</p>
+            <p>{overview}</p>
             <p>Rating: <span class="rating">{rating}</span></p>
-            <img src="{poster_url}" alt="{title} Poster" style="max-width:200px; border-radius:10px;">
-            <h2>Links</h2>
-            {links_html}
+            <img src="{poster_url}" alt="{title} poster" style="width:200px; border-radius:8px;">
+            <h2>Cast</h2>
+            <div class="cast">{cast_html}</div>
+            <h2>Recommended Movies</h2>
+            <div class="recommendations">{recommendations_html}</div>
+            <a href="{download_link}" download>
+                <button class="download-button">Download</button>
+            </a>
         </div>
     </body>
     </html>
     """
     return html_content
 
-# Command `/web` to start collecting links
-@bot.message_handler(commands=['web'])
-def start_collecting_links(message):
-    global collected_links
-    collected_links = []  # Reset links for a new session
-    bot.send_message(message.chat.id, "Please enter the movie name:")
+
+# Command handler for `/movie`
+@bot.message_handler(commands=['movie'])
+def send_movie_details(message):
+    bot.send_message(message.chat.id, "Please enter the name of the movie:")
     bot.register_next_step_handler(message, process_movie_name)
 
-# Process the movie name and prompt for links
+# Process the movie name
 def process_movie_name(message):
-    global movie_data
     movie_name = message.text
+    bot.send_message(message.chat.id, "Please enter the download link for the poster:")
+    bot.register_next_step_handler(message, process_download_link, movie_name)
+
+# Process the download link
+def process_download_link(message, movie_name):
+    download_link = message.text
     movie_data = fetch_movie_details(movie_name)
+
     if movie_data:
-        bot.send_message(message.chat.id, "Now, send the links (one at a time). Send `/end` when you're done.")
+        html_content = generate_html(movie_data, download_link)  # Ensure you define this function
+
+        # Save HTML content to a file
+        filename = f"{movie_name.replace(' ', '_')}_details.html"
+        with open(filename, 'w', encoding='utf-8') as file:
+            file.write(html_content)
+
+        # Send the HTML file to the user
+        with open(filename, 'rb') as file:
+            bot.send_document(message.chat.id, file)
+
+        # Remove the file after sending
+        os.remove(filename)
     else:
-        bot.send_message(message.chat.id, "Could not fetch movie details. Please try again.")
+        bot.send_message(message.chat.id, "Sorry, I couldn't find any details for that movie.")
 
-# Collect all links
-@bot.message_handler(func=lambda message: message.text != '/end')
-def collect_links(message):
-    global collected_links
-    collected_links.append(message.text)
-    bot.send_message(message.chat.id, f"Link added: {message.text}\nSend another link or type `/end` to finish.")
-
-# Generate the final HTML on `/end`
-@bot.message_handler(commands=['end'])
-def finalize_and_send_html(message):
-    global collected_links, movie_data
-
-    if not movie_data:
-        bot.send_message(message.chat.id, "No movie details available. Please start with /web.")
-        return
-
-    if not collected_links:
-        bot.send_message(message.chat.id, "No links collected. Please add links before finalizing.")
-        return
-
-    html_content = generate_html(movie_data, collected_links)
-    filename = f"{movie_data['title'].replace(' ', '_')}_details.html"
-
-    with open(filename, 'w', encoding='utf-8') as file:
-        file.write(html_content)
-
-    with open(filename, 'rb') as file:
-        bot.send_document(message.chat.id, file)
-
-    os.remove(filename)
-    bot.send_message(message.chat.id, "HTML file generated and sent successfully!")
-
-# Webhook route
+# Webhook route to handle incoming updates
 @app.route('/' + BOT_TOKEN, methods=['POST'])
 def webhook():
     json_str = request.get_data(as_text=True)
@@ -140,12 +169,32 @@ def webhook():
     bot.process_new_updates([update])
     return '', 200
 
-# Set webhook
+# Function to remove old webhook and set a new one
+def set_new_webhook():
+    # Remove existing webhook
+    remove_response = requests.get(f'https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook')
+    if remove_response.status_code == 200:
+        # Set new webhook
+        set_response = requests.get(f'https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={WEBHOOK_URL}/{BOT_TOKEN}')
+        return set_response.json()
+    return remove_response.json()
+
+# Route to set the webhook
 @app.route('/set_webhook', methods=['GET'])
 def set_webhook():
-    response = requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={WEBHOOK_URL}/{BOT_TOKEN}")
+    return set_new_webhook()
+
+# Route to remove the webhook
+@app.route('/remove_webhook', methods=['GET'])
+def remove_webhook():
+    response = requests.get(f'https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook')
     return response.json()
 
-# Start Flask app
+# Health check route for Koyeb
+@app.route('/health', methods=['GET'])
+def health():
+    return "Healthy", 200
+
+# Start the Flask app
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.getenv('PORT', 8000)))
+    app.run(host='0.0.0.0', port=int(os.getenv('PORT', 8000))) 
