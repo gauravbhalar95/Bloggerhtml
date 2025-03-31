@@ -8,119 +8,160 @@ app = Flask(__name__)
 
 # Replace with your bot token from Telegram
 BOT_TOKEN = os.getenv('BOT_TOKEN')
+# Replace with your TMDB API key
+TMDB_API_KEY = os.getenv('TMDB')
+# The URL for webhook (replace with your actual Koyeb URL)
 WEBHOOK_URL = os.getenv('WEBHOOK_URL')
 
 # Initialize the TeleBot
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# Function to generate high-quality SEO-optimized recipe HTML
-def generate_recipe_html(title, image_urls, description, ingredients, steps, tips, faq, related_recipes, suggest_url):
-    images_html = "".join([f'<img src="{url}" alt="{title}" class="recipe-image">' for url in image_urls])
+# Function to fetch movie details from TMDB
+def fetch_movie_details(movie_name):
+    url = f"https://api.themoviedb.org/3/search/movie?api_key={TMDB_API_KEY}&query={movie_name}"
+    response = requests.get(url)
+    if response.status_code != 200:
+        print(f"Error fetching movie details: {response.status_code} - {response.text}")
+        return None
+
+    data = response.json()
+    if data['results']:
+        movie = data['results'][0]
+        movie_id = movie['id']
+        details_url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={TMDB_API_KEY}&append_to_response=credits,recommendations"
+        details_response = requests.get(details_url)
+        if details_response.status_code != 200:
+            print(f"Error fetching movie details: {details_response.status_code} - {details_response.text}")
+            return None
+
+        return details_response.json()
+    return None
+
+# Function to generate HTML content
+def generate_html(movie_data, download_link):
+    title = movie_data.get('title', 'Unknown Title')
+    overview = movie_data.get('overview', 'No description available.')
+    rating = movie_data.get('vote_average', 'N/A')
+    poster_path = movie_data.get('poster_path')
+    poster_url = f"https://image.tmdb.org/t/p/w500{poster_path}" if poster_path else ''
+
+    # HTML for the cast members
+    cast_html = ''
+    for cast in movie_data.get('credits', {}).get('cast', [])[:4]:  # Top 4 cast members
+        profile_path = cast.get('profile_path')
+        profile_url = f"https://image.tmdb.org/t/p/w185{profile_path}" if profile_path else ''
+        cast_html += f"""
+        <div class="cast-member">
+            <img src="{profile_url}" alt="{cast['name']}" class="cast-photo">
+            <p class="cast-name">{cast['name']}</p>
+        </div>
+        """
+
+    # HTML for recommended movies
+    recommendations_html = ''
+    for rec in movie_data.get('recommendations', {}).get('results', [])[:4]:  # Top 4 recommendations
+        rec_poster_path = rec.get('poster_path')
+        rec_poster_url = f"https://image.tmdb.org/t/p/w185{rec_poster_path}" if rec_poster_path else ''
+        recommendations_html += f"""
+        <div class="recommendation">
+            <img src="{rec_poster_url}" alt="{rec['title']}" class="recommendation-poster">
+            <p class="recommendation-title">{rec['title']}</p>
+        </div>
+        """
+
+    # HTML Template with Download Button
     html_content = f"""
     <!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>{title} Recipe</title>
-        <meta name="description" content="{description}" />
-        <meta name="robots" content="index, follow" />
+        <title>{title} - Movie Details</title>
         <style>
             body {{ font-family: Arial, sans-serif; background-color: #f4f4f4; text-align: center; }}
-            #recipe-container {{ max-width: 800px; margin: 50px auto; padding: 20px; border-radius: 8px; background-color: #fff; }}
-            h1 {{ color: #ff5722; font-size: 28px; }}
-            h2, h3 {{ color: #ff2200; font-size: 22px; }}
-            p {{ color: #333; font-size: 16px; }}
-            .recipe-image {{ width: 100%; border-radius: 8px; margin: 10px 0; }}
-            .section {{ text-align: left; margin: 20px; }}
-            .faq, .related-recipes {{ margin-top: 20px; }}
-            .suggest-url {{ font-size: 18px; font-weight: bold; color: #0073e6; }}
+            #movie-container {{ max-width: 800px; margin: 50px auto; padding: 20px; border-radius: 8px; background-color: #fff; }}
+            h1 {{ color: #ff001f; }}
+            p {{ color: #1100ff; }}
+            .rating {{ font-size: 24px; color: #ffd700; }}
+            .cast {{ display: flex; justify-content: space-around; }}
+            .cast-member {{ margin: 10px; }}
+            .cast-photo {{ width: 100px; height: auto; border-radius: 8px; }}
+            .recommendations {{ display: flex; justify-content: space-around; margin-top: 20px; }}
+            .recommendation {{ margin: 10px; }}
+            .recommendation-poster {{ width: 80px; height: auto; border-radius: 8px; }}
+            .download-button {{
+                margin-top: 20px;
+                padding: 10px 20px;
+                font-size: 18px;
+                font-weight: bold;
+                color: #fff;
+                background-color: #ff5722;
+                border: none;
+                border-radius: 8px;
+                cursor: pointer;
+                animation: blink 1.5s linear infinite;
+            }}
+            @keyframes blink {{
+                0%, 100% {{ background-color: #ff5722; }}
+                50% {{ background-color: #ff2200; }}
+            }}
         </style>
     </head>
     <body>
-        <div id="recipe-container">
+        <div id="movie-container">
             <h1>{title}</h1>
-            {images_html}
-            <h2>Recipe Overview</h2>
-            <p>{description}</p>
-            <h2>Ingredients</h2>
-            <p>{ingredients}</p>
-            <h2>Instructions</h2>
-            <p>{steps}</p>
-            <h3>Tips for Perfect Recipe</h3>
-            <p>{tips}</p>
-            <div class="faq">
-                <h3>FAQs</h3>
-                <p>{faq}</p>
-            </div>
-            <div class="related-recipes">
-                <h3>Related Recipes</h3>
-                <p>{related_recipes}</p>
-            </div>
-            <p class="suggest-url">Suggested URL: {suggest_url}</p>
+            <p>{overview}</p>
+            <p>Rating: <span class="rating">{rating}</span></p>
+            <img src="{poster_url}" alt="{title} poster" style="width:200px; border-radius:8px;">
+            <h2>Cast</h2>
+            <div class="cast">{cast_html}</div>
+            <h2>Recommended Movies</h2>
+            <div class="recommendations">{recommendations_html}</div>
+            <a href="{download_link}" download>
+                <button class="download-button">Download</button>
+            </a>
         </div>
     </body>
     </html>
     """
     return html_content
 
-# Command handler for `/recipe`
-@bot.message_handler(commands=['recipe'])
-def request_recipe_details(message):
-    bot.send_message(message.chat.id, "Enter the recipe title (H1):")
-    bot.register_next_step_handler(message, process_title)
 
-def process_title(message):
-    title = message.text
-    bot.send_message(message.chat.id, "Enter three image URLs separated by commas:")
-    bot.register_next_step_handler(message, process_images, title)
+# Command handler for `/movie`
+@bot.message_handler(commands=['movie'])
+def send_movie_details(message):
+    bot.send_message(message.chat.id, "Please enter the name of the movie:")
+    bot.register_next_step_handler(message, process_movie_name)
 
-def process_images(message, title):
-    image_urls = [url.strip() for url in message.text.split(',')]
-    bot.send_message(message.chat.id, "Enter a short recipe description:")
-    bot.register_next_step_handler(message, process_description, title, image_urls)
+# Process the movie name
+def process_movie_name(message):
+    movie_name = message.text
+    bot.send_message(message.chat.id, "Please enter the download link for the poster:")
+    bot.register_next_step_handler(message, process_download_link, movie_name)
 
-def process_description(message, title, image_urls):
-    description = message.text
-    bot.send_message(message.chat.id, "Enter ingredients list:")
-    bot.register_next_step_handler(message, process_ingredients, title, image_urls, description)
+# Process the download link
+def process_download_link(message, movie_name):
+    download_link = message.text
+    movie_data = fetch_movie_details(movie_name)
 
-def process_ingredients(message, title, image_urls, description):
-    ingredients = message.text
-    bot.send_message(message.chat.id, "Enter step-by-step instructions:")
-    bot.register_next_step_handler(message, process_steps, title, image_urls, description, ingredients)
+    if movie_data:
+        html_content = generate_html(movie_data, download_link)  # Ensure you define this function
 
-def process_steps(message, title, image_urls, description, ingredients):
-    steps = message.text
-    bot.send_message(message.chat.id, "Enter cooking tips:")
-    bot.register_next_step_handler(message, process_tips, title, image_urls, description, ingredients, steps)
+        # Save HTML content to a file
+        filename = f"{movie_name.replace(' ', '_')}_details.html"
+        with open(filename, 'w', encoding='utf-8') as file:
+            file.write(html_content)
 
-def process_tips(message, title, image_urls, description, ingredients, steps):
-    tips = message.text
-    bot.send_message(message.chat.id, "Enter FAQs:")
-    bot.register_next_step_handler(message, process_faq, title, image_urls, description, ingredients, steps, tips)
+        # Send the HTML file to the user
+        with open(filename, 'rb') as file:
+            bot.send_document(message.chat.id, file)
 
-def process_faq(message, title, image_urls, description, ingredients, steps, tips):
-    faq = message.text
-    bot.send_message(message.chat.id, "Enter related recipes:")
-    bot.register_next_step_handler(message, process_related, title, image_urls, description, ingredients, steps, tips, faq)
+        # Remove the file after sending
+        os.remove(filename)
+    else:
+        bot.send_message(message.chat.id, "Sorry, I couldn't find any details for that movie.")
 
-def process_related(message, title, image_urls, description, ingredients, steps, tips, faq):
-    related_recipes = message.text
-    bot.send_message(message.chat.id, "Enter a suggested URL for the recipe:")
-    bot.register_next_step_handler(message, generate_and_send_html, title, image_urls, description, ingredients, steps, tips, faq, related_recipes)
-
-def generate_and_send_html(message, title, image_urls, description, ingredients, steps, tips, faq, related_recipes):
-    suggest_url = message.text
-    html_content = generate_recipe_html(title, image_urls, description, ingredients, steps, tips, faq, related_recipes, suggest_url)
-    filename = f"{title.replace(' ', '_')}_recipe.html"
-    with open(filename, 'w', encoding='utf-8') as file:
-        file.write(html_content)
-    with open(filename, 'rb') as file:
-        bot.send_document(message.chat.id, file)
-    os.remove(filename)
-
-# Webhook route
+# Webhook route to handle incoming updates
 @app.route('/' + BOT_TOKEN, methods=['POST'])
 def webhook():
     json_str = request.get_data(as_text=True)
@@ -128,6 +169,32 @@ def webhook():
     bot.process_new_updates([update])
     return '', 200
 
+# Function to remove old webhook and set a new one
+def set_new_webhook():
+    # Remove existing webhook
+    remove_response = requests.get(f'https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook')
+    if remove_response.status_code == 200:
+        # Set new webhook
+        set_response = requests.get(f'https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={WEBHOOK_URL}/{BOT_TOKEN}')
+        return set_response.json()
+    return remove_response.json()
+
+# Route to set the webhook
+@app.route('/set_webhook', methods=['GET'])
+def set_webhook():
+    return set_new_webhook()
+
+# Route to remove the webhook
+@app.route('/remove_webhook', methods=['GET'])
+def remove_webhook():
+    response = requests.get(f'https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook')
+    return response.json()
+
+# Health check route for Koyeb
+@app.route('/health', methods=['GET'])
+def health():
+    return "Healthy", 200
+
 # Start the Flask app
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.getenv('PORT', 8000)))
+    app.run(host='0.0.0.0', port=int(os.getenv('PORT', 8000))) 
